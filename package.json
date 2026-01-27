@@ -1,0 +1,18 @@
+{
+  "name": "macro-investing",
+  "version": "1.0.0",
+  "description": "A data collection tool for macroeconomic indicators",
+  "main": "src/index.js",
+  "scripts": {
+    "collect": "node src/index.js",
+    "collect:unemployment": "node scripts/unemployment-rate.js",
+    "collect:jobless": "node scripts/jobless-claims.js",
+    "collect:nonfarm": "node scripts/nonfarm-payrolls.js"
+  },
+  "dependencies": {
+    "playwright": "^1.40.0",
+    "exceljs": "^4.4.0",
+    "pdf-parse": "^1.1.1"
+  },
+  "type": "module"
+}
