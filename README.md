@@ -31,6 +31,16 @@ Each Excel file contains:
 - Rows for each macro indicator
 - Columns for indicator name, value, date collected, and source
 
+## Quick Start
+
+```bash
+npm install && npm run collect:all
+```
+
+This single command installs dependencies and collects all macro indicators, saving them to `data/macro-indicators.xlsx`.
+
+---
+
 ## Getting Started
 
 ### Prerequisites
@@ -46,8 +56,22 @@ npm install
 
 ### Running Data Collection
 
+**Collect all indicators:**
 ```bash
-npm run collect
+npm run collect:all
+```
+
+**Or run individual collectors:**
+```bash
+npm run collect:unemployment      # Unemployment Rate
+npm run collect:nonfarm           # Nonfarm Payrolls
+npm run collect:jobless           # Initial Jobless Claims
+npm run collect:cpi               # CPI & Core CPI
+npm run collect:ppi               # PPI
+npm run collect:ism-manufacturing # ISM Manufacturing PMI
+npm run collect:ism-services      # ISM Services PMI
+npm run collect:consumer-confidence # Consumer Confidence
+npm run collect:chicago-pmi       # Chicago PMI (manual entry required)
 ```
 
 ## Macro Indicators

@@ -4,10 +4,16 @@
   "description": "A data collection tool for macroeconomic indicators",
   "main": "src/index.js",
   "scripts": {
-    "collect": "node src/index.js",
+    "collect:all": "node scripts/unemployment-rate.js && node scripts/nonfarm-payrolls.js && node scripts/jobless-claims.js && node scripts/cpi.js && node scripts/ppi.js && node scripts/ism-manufacturing.js && node scripts/ism-services.js && node scripts/consumer-confidence.js && node scripts/chicago-pmi.js",
     "collect:unemployment": "node scripts/unemployment-rate.js",
     "collect:jobless": "node scripts/jobless-claims.js",
-    "collect:nonfarm": "node scripts/nonfarm-payrolls.js"
+    "collect:nonfarm": "node scripts/nonfarm-payrolls.js",
+    "collect:cpi": "node scripts/cpi.js",
+    "collect:ppi": "node scripts/ppi.js",
+    "collect:ism-manufacturing": "node scripts/ism-manufacturing.js",
+    "collect:ism-services": "node scripts/ism-services.js",
+    "collect:chicago-pmi": "node scripts/chicago-pmi.js",
+    "collect:consumer-confidence": "node scripts/consumer-confidence.js"
   },
   "dependencies": {
     "playwright": "^1.40.0",
