@@ -1,8 +1,33 @@
 {
   "name": "macro-investing",
   "version": "1.0.0",
-  "description": "A data collection tool for macroeconomic indicators",
+  "description": "Automated macroeconomic indicator collection with AI-powered Fed policy analysis. Tracks unemployment, CPI, PPI, ISM PMI, and more from official sources.",
   "main": "src/index.js",
+  "keywords": [
+    "macro",
+    "investing",
+    "economics",
+    "federal-reserve",
+    "unemployment",
+    "cpi",
+    "inflation",
+    "pmi",
+    "economic-indicators",
+    "data-collection",
+    "playwright",
+    "web-scraping",
+    "finance",
+    "trading"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/crazysoftwarecoder/macro-investing.git"
+  },
+  "author": "crazysoftwarecoder",
+  "homepage": "https://github.com/crazysoftwarecoder/macro-investing#readme",
+  "bugs": {
+    "url": "https://github.com/crazysoftwarecoder/macro-investing/issues"
+  },
   "scripts": {
     "collect:all": "node scripts/unemployment-rate.js && node scripts/nonfarm-payrolls.js && node scripts/jobless-claims.js && node scripts/cpi.js && node scripts/ppi.js && node scripts/ism-manufacturing.js && node scripts/ism-services.js && node scripts/consumer-confidence.js && node scripts/chicago-pmi.js",
     "collect:unemployment": "node scripts/unemployment-rate.js",
