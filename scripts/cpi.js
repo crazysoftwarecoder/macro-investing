@@ -1,61 +1,52 @@
-import { chromium } from 'playwright';
 import { writeToExcel } from './utils/excel-writer.js';
 
 async function fetchCPI() {
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
-  await page.setExtraHTTPHeaders({
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.5'
-  });
-
   try {
-    // Fetch CPI YoY from BLS
-    console.log('Fetching CPI YoY from BLS (official source)...');
-    await page.goto('https://www.bls.gov/news.release/cpi.nr0.htm', { timeout: 30000 });
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(3000);
-
-    const content = await page.locator('pre').first().textContent();
-
-    const cpiYoyMatch = content.match(/12[- ]months?[^0-9]*?(?:all items index)?[^0-9]*?(?:increased|rose|decreased|fell)\s+(\d+\.?\d*)\s*percent/i) ||
-                        content.match(/all items index[^0-9]*?(?:increased|rose)\s+(\d+\.?\d*)\s*percent[^.]*12/i) ||
-                        content.match(/(\d+\.?\d*)\s*percent[^.]*over the (?:last |past )?12/i);
-
-    if (cpiYoyMatch) {
-      const cpiValue = `${cpiYoyMatch[1]}%`;
-      console.log(`✓ CPI YoY: ${cpiValue}`);
-      await writeToExcel('CPI YoY', cpiValue);
-    } else {
-      console.log('Could not find CPI YoY value');
-    }
-
-    // Fetch Core CPI YoY from investing.com
-    console.log('Fetching Core CPI YoY from investing.com...');
-    await page.goto('https://www.investing.com/economic-calendar/core-cpi-736', {
-      timeout: 60000,
-      waitUntil: 'domcontentloaded'
+    const currentYear = new Date().getFullYear();
+    const resp = await fetch('https://api.bls.gov/publicAPI/v2/timeseries/data/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        seriesid: ['CUUR0000SA0', 'CUUR0000SA0L1E'],
+        startyear: String(currentYear - 1),
+        endyear: String(currentYear)
+      })
     });
-    await page.waitForTimeout(5000);
 
-    const pageText = await page.locator('body').textContent();
-
-    const coreCpiMatch = pageText.match(/Actual[:\s]*(\d+\.?\d*)%/i) ||
-                         pageText.match(/Release.*?Actual.*?(\d+\.?\d*)%/is);
-
-    if (coreCpiMatch) {
-      const coreCpiValue = `${coreCpiMatch[1]}%`;
-      console.log(`✓ Core CPI YoY: ${coreCpiValue}`);
-      await writeToExcel('Core CPI YoY', coreCpiValue);
-    } else {
-      console.log('Could not find Core CPI YoY value');
+    const data = await resp.json();
+    if (data.status !== 'REQUEST_SUCCEEDED') {
+      throw new Error(`BLS API error: ${data.message}`);
     }
 
+    for (const series of data.Results.series) {
+      const sorted = series.data
+        .filter(d => d.value !== '-')
+        .sort((a, b) => (a.year + a.period).localeCompare(b.year + b.period));
+
+      const latest = sorted[sorted.length - 1];
+      // Find same month previous year
+      const latestMonth = latest.period;
+      const yearAgo = sorted.find(
+        d => d.period === latestMonth && d.year === String(parseInt(latest.year) - 1)
+      );
+
+      if (!yearAgo) {
+        console.log(`Could not find year-ago data for ${series.seriesID}`);
+        continue;
+      }
+
+      const yoyChange = ((parseFloat(latest.value) - parseFloat(yearAgo.value)) / parseFloat(yearAgo.value) * 100).toFixed(1);
+
+      if (series.seriesID === 'CUUR0000SA0') {
+        console.log(`✓ CPI YoY: ${yoyChange}% (${latest.periodName} ${latest.year})`);
+        await writeToExcel('CPI YoY', `${yoyChange}%`);
+      } else {
+        console.log(`✓ Core CPI YoY: ${yoyChange}% (${latest.periodName} ${latest.year})`);
+        await writeToExcel('Core CPI YoY', `${yoyChange}%`);
+      }
+    }
   } catch (error) {
     console.error('Error fetching CPI:', error.message);
-  } finally {
-    await browser.close();
   }
 }
 

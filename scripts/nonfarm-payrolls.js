@@ -1,48 +1,42 @@
-import { chromium } from 'playwright';
 import { writeToExcel } from './utils/excel-writer.js';
 
 async function fetchNonfarmPayrolls() {
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
-
-  await page.setExtraHTTPHeaders({
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-  });
-
   try {
-    console.log('Navigating to Employment Situation Summary...');
-    await page.goto('https://www.bls.gov/news.release/empsit.nr0.htm', { timeout: 30000 });
+    console.log('Fetching Nonfarm Payrolls from BLS API...');
+    const currentYear = new Date().getFullYear();
+    const resp = await fetch('https://api.bls.gov/publicAPI/v2/timeseries/data/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        seriesid: ['CES0000000001'],
+        startyear: String(currentYear - 1),
+        endyear: String(currentYear)
+      })
+    });
 
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(3000);
-
-    const content = await page.locator('pre').first().textContent();
-
-    // Look for nonfarm payroll change pattern
-    // Format: "nonfarm payroll employment (+50,000)" or "(+256,000)" or "(-50,000)"
-    const payrollMatch = content.match(/nonfarm payroll employment\s*\(([+-]?[\d,]+)\)/i) ||
-                         content.match(/payroll employment\s*\(([+-]?[\d,]+)\)/i);
-
-    if (payrollMatch) {
-      const rawValue = payrollMatch[1]; // e.g., "+50,000" or "-50,000"
-      const numericValue = parseInt(rawValue.replace(/,/g, '').replace(/\+/g, ''), 10);
-      const sign = rawValue.startsWith('-') ? '-' : '+';
-      const displayValue = `${sign}${Math.abs(numericValue).toLocaleString()}`;
-      console.log(`\n✓ Nonfarm Payrolls: ${displayValue}`);
-
-      await writeToExcel('Nonfarm Payrolls', displayValue);
-
-      return { value: displayValue, date: new Date().toISOString() };
-    } else {
-      console.log('\nPage content preview:');
-      console.log(content.substring(0, 1000));
-      console.log('\nCould not parse nonfarm payrolls from content');
+    const data = await resp.json();
+    if (data.status !== 'REQUEST_SUCCEEDED') {
+      throw new Error(`BLS API error: ${data.message}`);
     }
 
+    const series = data.Results.series[0];
+    // Sort by year+period ascending
+    const sorted = series.data.sort((a, b) =>
+      (a.year + a.period).localeCompare(b.year + b.period)
+    );
+
+    const latest = sorted[sorted.length - 1];
+    const previous = sorted[sorted.length - 2];
+    const change = (parseFloat(latest.value) - parseFloat(previous.value)) * 1000;
+    const sign = change >= 0 ? '+' : '';
+    const displayValue = `${sign}${Math.round(change).toLocaleString()}`;
+
+    console.log(`\n✓ Nonfarm Payrolls: ${displayValue} (${latest.periodName} ${latest.year})`);
+    await writeToExcel('Nonfarm Payrolls', displayValue);
+
+    return { value: displayValue, date: new Date().toISOString() };
   } catch (error) {
     console.error('Error fetching nonfarm payrolls:', error.message);
-  } finally {
-    await browser.close();
   }
 }
 

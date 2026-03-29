@@ -1,46 +1,40 @@
-import { chromium } from 'playwright';
 import { writeToExcel } from './utils/excel-writer.js';
 
 async function fetchPPI() {
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
-  await page.setExtraHTTPHeaders({
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-  });
-
   try {
-    console.log('Fetching PPI data from BLS (official source)...');
-    await page.goto('https://www.bls.gov/news.release/ppi.nr0.htm', { timeout: 30000 });
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(3000);
+    console.log('Fetching PPI data from BLS API...');
+    const currentYear = new Date().getFullYear();
+    const resp = await fetch('https://api.bls.gov/publicAPI/v2/timeseries/data/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        seriesid: ['WPSFD49104'],
+        startyear: String(currentYear - 1),
+        endyear: String(currentYear)
+      })
+    });
 
-    const content = await page.locator('pre').first().textContent();
-
-    // Look for PPI MoM pattern - final demand prices change
-    // Example: "The Producer Price Index for final demand rose 0.2 percent in December"
-    const ppiMatch = content.match(/final demand[^0-9]*?(rose|increased|fell|decreased|was unchanged)[^0-9]*?(\d+\.?\d*)?\s*percent/i);
-
-    if (ppiMatch) {
-      const direction = ppiMatch[1].toLowerCase();
-      if (direction === 'was unchanged') {
-        console.log(`✓ PPI MoM: 0.0%`);
-        await writeToExcel('PPI MoM', '0.0%');
-      } else {
-        const value = ppiMatch[2] || '0';
-        const sign = (direction === 'fell' || direction === 'decreased') ? '-' : '+';
-        const ppiValue = `${sign}${value}%`;
-        console.log(`✓ PPI MoM: ${ppiValue}`);
-        await writeToExcel('PPI MoM', ppiValue);
-      }
-    } else {
-      console.log('Could not find PPI MoM value');
-      console.log('Content preview:', content.substring(0, 1000));
+    const data = await resp.json();
+    if (data.status !== 'REQUEST_SUCCEEDED') {
+      throw new Error(`BLS API error: ${data.message}`);
     }
 
+    const series = data.Results.series[0];
+    const sorted = series.data
+      .filter(d => d.value !== '-')
+      .sort((a, b) => (a.year + a.period).localeCompare(b.year + b.period));
+
+    const latest = sorted[sorted.length - 1];
+    const previous = sorted[sorted.length - 2];
+
+    const momChange = ((parseFloat(latest.value) - parseFloat(previous.value)) / parseFloat(previous.value) * 100).toFixed(1);
+    const sign = parseFloat(momChange) >= 0 ? '+' : '';
+    const ppiValue = `${sign}${momChange}%`;
+
+    console.log(`✓ PPI MoM: ${ppiValue} (${latest.periodName} ${latest.year})`);
+    await writeToExcel('PPI MoM', ppiValue);
   } catch (error) {
     console.error('Error fetching PPI:', error.message);
-  } finally {
-    await browser.close();
   }
 }
 

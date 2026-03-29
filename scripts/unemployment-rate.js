@@ -1,44 +1,32 @@
-import { chromium } from 'playwright';
 import { writeToExcel } from './utils/excel-writer.js';
 
 async function fetchUnemploymentRate() {
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
-
-  await page.setExtraHTTPHeaders({
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-  });
-
   try {
-    console.log('Navigating to Employment Situation Summary...');
-    await page.goto('https://www.bls.gov/news.release/empsit.nr0.htm', { timeout: 30000 });
+    console.log('Fetching Unemployment Rate from BLS API...');
+    const resp = await fetch('https://api.bls.gov/publicAPI/v2/timeseries/data/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        seriesid: ['LNS14000000'],
+        latest: true
+      })
+    });
 
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(3000);
-
-    const content = await page.locator('pre').first().textContent();
-
-    // Look for unemployment rate pattern
-    const rateMatch = content.match(/unemployment rate[,\s]+(?:at\s+)?(\d+\.?\d*)\s*percent/i) ||
-                      content.match(/(\d+\.?\d*)\s*percent[,\s]+(?:and|while)/i);
-
-    if (rateMatch) {
-      const rate = parseFloat(rateMatch[1]);
-      console.log(`\n✓ Unemployment Rate: ${rate}%`);
-
-      await writeToExcel('Unemployment Rate', `${rate}%`);
-
-      return { rate, date: new Date().toISOString() };
-    } else {
-      console.log('\nPage content preview:');
-      console.log(content.substring(0, 500));
-      console.log('\nCould not parse unemployment rate from content');
+    const data = await resp.json();
+    if (data.status !== 'REQUEST_SUCCEEDED') {
+      throw new Error(`BLS API error: ${data.message}`);
     }
 
+    const series = data.Results.series[0];
+    const latest = series.data[0];
+    const rate = parseFloat(latest.value);
+
+    console.log(`\n✓ Unemployment Rate: ${rate}% (${latest.periodName} ${latest.year})`);
+    await writeToExcel('Unemployment Rate', `${rate}%`);
+
+    return { rate, date: new Date().toISOString() };
   } catch (error) {
     console.error('Error fetching unemployment rate:', error.message);
-  } finally {
-    await browser.close();
   }
 }
 
